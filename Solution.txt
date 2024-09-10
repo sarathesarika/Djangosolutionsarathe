@@ -1,0 +1,187 @@
+Topic: Django Signals -
+---------------------------------------------------------
+
+Question 1: By default are django signals executed synchronously or asynchronously? Please support your answer with a code snippet that conclusively proves your stance. The code does not need to be elegant and production ready, we just need to understand your logic.
+
+SOLUTION :-
+Django signals are executed synchronously. This means that when a signal is sent, it will be processed immediately in the same thread before the caller continues execution.
+
+# models.py
+
+import time
+from django.db import models
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+
+class MyModel(models.Model):
+    name = models.CharField(max_length=50)
+
+# Signal handler that introduces a delay to simulate long processing time
+@receiver(post_save, sender=MyModel)
+def my_signal_handler(sender, instance, **kwargs):
+    print("Signal handler started")
+    time.sleep(5)  # Simulate a delay to prove synchronous execution
+    print("Signal handler finished")
+
+
+# test.py (or a simple Django shell session)
+
+from myapp.models import MyModel
+
+# Create a new instance of MyModel, which will trigger the post_save signal
+print("Before creating the object")
+obj = MyModel.objects.create(name="Test Object")
+print("After creating the object")
+
+
+----------------------------------------------------------------------------------
+
+
+Question 2: Do django signals run in the same thread as the caller? Please support your answer with a code snippet that conclusively proves your stance. The code does not need to be elegant and production ready, we just need to understand your logic.
+
+SOLUTION :-
+Yes, Django signals run in the same thread as the caller by default. This means that the signal handlers are executed in the same thread that triggered the signal, blocking other operations in that thread until the signal handler completes.
+
+# models.py
+
+import threading
+from django.db import models
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+
+class MyModel(models.Model):
+    name = models.CharField(max_length=50)
+
+# Signal handler that prints the thread ID
+@receiver(post_save, sender=MyModel)
+def my_signal_handler(sender, instance, **kwargs):
+    print(f"Signal handler running in thread: {threading.get_ident()}")
+
+
+# test.py (or a simple Django shell session)
+
+import threading
+from myapp.models import MyModel
+
+def create_model():
+    # Print thread ID from within a different thread
+    print(f"Creating model in thread: {threading.get_ident()}")
+    obj = MyModel.objects.create(name="Test Object")
+
+# Print thread ID from the main thread
+print(f"Main thread ID: {threading.get_ident()}")
+
+# Start a new thread to create a model
+thread = threading.Thread(target=create_model)
+thread.start()
+thread.join()
+
+print("Finished creating model")
+
+
+
+------------------------------------------------------------------------------------------------
+
+Question 3: By default do django signals run in the same database transaction as the caller? Please support your answer with a code snippet that conclusively proves your stance. The code does not need to be elegant and production ready, we just need to understand your logic.
+
+SOLUTION :-
+Yes, by default, Django signals run in the same database transaction as the caller. This means that any changes made in the signal handler will be part of the same transaction and will be committed or rolled back together with the transaction initiated by the caller.
+
+
+# models.py
+
+from django.db import models
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+from django.db import transaction
+
+class MyModel(models.Model):
+    name = models.CharField(max_length=50)
+
+class Log(models.Model):
+    message = models.CharField(max_length=100)
+
+# Signal handler that creates a Log entry
+@receiver(post_save, sender=MyModel)
+def my_signal_handler(sender, instance, **kwargs):
+    Log.objects.create(message=f"Created {instance.name}")
+
+# test.py (or a Django shell session)
+
+from django.db import transaction
+from myapp.models import MyModel, Log
+
+def create_model(commit=True):
+    with transaction.atomic():  # Start a transaction
+        obj = MyModel.objects.create(name="Test Object")
+        # Check if Log entry was created before commit
+        logs_before_commit = Log.objects.count()
+        print(f"Logs before commit: {logs_before_commit}")
+
+        if not commit:
+            # Rollback the transaction
+            raise Exception("Rolling back transaction")
+        
+        # Commit the transaction if not rolled back
+        transaction.commit()
+
+# Test with commit
+print("Testing with commit")
+create_model(commit=True)
+print(f"Logs after commit: {Log.objects.count()}")
+
+# Test with rollback
+print("Testing with rollback")
+try:
+    create_model(commit=False)
+except Exception:
+    pass  # Rollback happened, just for testing
+print(f"Logs after rollback: {Log.objects.count()}")
+
+-------------------------------------------------------------------------------------
+
+Topic: Custom Classes in Python
+------------------------------------------
+
+
+Description: You are tasked with creating a Rectangle class with the following requirements:
+
+1.An instance of the Rectangle class requires length:int and width:int to be initialized.
+2.We can iterate over an instance of the Rectangle class 
+3.When an instance of the Rectangle class is iterated over, we first get its length in the format: {'length': <VALUE_OF_LENGTH>} followed by the width {width: <VALUE_OF_WIDTH>}
+
+
+SOLUTION :-
+
+class Rectangle:
+    def __init__(self, length: int, width: int):
+        self.length = length
+        self.width = width
+    
+    def __iter__(self):
+        # Define the iteration as a generator
+        yield {'length': self.length}
+        yield {'width': self.width}
+
+# Example usage:
+rect = Rectangle(5, 3)
+
+for item in rect:
+    print(item)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
